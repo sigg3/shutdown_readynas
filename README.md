@@ -1,5 +1,6 @@
 # shutdown_readynas
-Small utility to shutdown a Netgear ReadyNAS using browser automation
+Small utility to shutdown a Netgear ReadyNAS using browser automation.
+This is rather overkill, but works over HTTPS yay!
 
 Usage: ./shutdown_readynas <IP> <PASSWORD>
 
