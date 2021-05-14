@@ -8,5 +8,8 @@ Yes, it is rather overkill, but it works.
 Usage: ./shutdown_readynas &lt;IP> &lt;PASSWORD>
 
 # TODO
-0. Ping NAS first (connection issues)
-1. Test that we're actually on the login page (error handling)
+0. Change to ./shutdown_nas &lt;IP> and prompt for password
+1. Or allow separate --password argument (unsafe)
+2. Ping before prompting
+3. Allow --noping in case of IGMP block
+4. There are currently 2 known errors to handle: web-server cold boot (timeout) and wrong password. (Successful execution shows "Done.")
