@@ -11,7 +11,7 @@ wait to transmit login credentials until after a session has been established,
 but there ARE NO GUARANTEES that the GET requests cannot be read on the LAN.
 
 Usage:
-    {sys.argv[0]} [options] <NAS IP address>
+    shutdown_readynas [options] <NAS IP address>
 
 Options:
     --user=<string>      To use a different admin user. Default is 'admin'
