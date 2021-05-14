@@ -20,4 +20,5 @@ Options:
 
 # TODO
 0. Verify that we do not send GET request in the open
-1. There are currently 2 known errors to handle: web-server cold boot (timeout) and wrong password. (Successful execution shows "Done.")
+1. There are currently 2 known errors to handle: web-server cold boot (timeout) and wrong password.
+2. Package it up in __main__, python style.
