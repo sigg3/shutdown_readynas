@@ -16,6 +16,10 @@
 # URL: <https://www.gnu.org/licenses/old-licenses/gpl-3.0.txt>
 #
 # Submit issues at: <https://github.com/sigg3/shutdown_readynas>
+
+# TODO
+# Set accept tls1.0 in webdriver options
+
 import sys
 from socket import inet_aton
 from time import sleep
@@ -34,7 +38,8 @@ def shut_browser(ff_driver: webdriver):
             print("Error: Could not shut down webdriver.")
 
 
-usage = f"""Shut down a running Netgear ReadyNAS through the FrontView web GUI.
+if __name__ == "__main__":
+    usage = f"""Shut down a running Netgear ReadyNAS through the FrontView web GUI.
 
 Warning: The ReadyNAS uses a very old self-signed certificate. By default, we
 wait to transmit login credentials until after a session has been established,
@@ -48,127 +53,127 @@ Options:
     --password=<string>  This is bad practice. Omit to use the prompt instead.
 """
 
-# Check arg num
-if len(sys.argv) < 2:
-    print(usage); quit()
+    # Check arg num
+    if len(sys.argv) < 2:
+        print(usage); quit()
 
-# Handle arg booleans
-do_ping = True
-nas_ip = None
-nas_user = 'admin'
-nas_pass = None
+    # Handle arg booleans
+    do_ping = True
+    nas_ip = None
+    nas_user = 'admin'
+    nas_pass = None
 
-for _incoming in sys.argv:
-    if _incoming == sys.argv[0] or _incoming == '':
-        continue
-    elif _incoming[0].isdigit():
-        try:
-            inet_aton(_incoming)
-            nas_ip = _incoming
+    for _incoming in sys.argv:
+        if _incoming == sys.argv[0] or _incoming == '':
             continue
-        except:
-            print(usage); quit()
-    else:
-        if _incoming.startswith("--"):
-            _incoming = _incoming[2:]
-        elif _incoming.startswith("-"):
-            _incoming = _incoming[1:]
+        elif _incoming[0].isdigit():
+            try:
+                inet_aton(_incoming)
+                nas_ip = _incoming
+                continue
+            except:
+                print(usage); quit()
         else:
-            print(usage); quit()
+            if _incoming.startswith("--"):
+                _incoming = _incoming[2:]
+            elif _incoming.startswith("-"):
+                _incoming = _incoming[1:]
+            else:
+                print(usage); quit()
 
-    if _incoming[0:4].lower() == 'pass':
+        if _incoming[0:4].lower() == 'pass':
+            try:
+                nas_pass = _incoming.split("=")[1]
+            except:
+                print(usage); quit()
+        elif _incoming.lower() == 'user':
+            nas_user = _incoming
+
+    if nas_ip is None:
+        print(usage) ; quit()
+
+    if nas_pass is None:
         try:
-            nas_pass = _incoming.split("=")[1]
+            nas_pass = getpass(f"Password for {nas_user}: ")
+        except KeyboardInterrupt:
+            print("\nShutdown canceled.") ; quit()
+
+    print(f"Shutting down ReadyNAS ({nas_ip}) over HTTPS as {nas_user}")
+
+    # setup browser object and URL
+    is_headless = webdriver.firefox.options.Options()
+    is_headless.headless = True
+    #accept_cert = webdriver.FirefoxProfile()
+    #accept_cert.accept_untrusted_certs = True
+    #browser = webdriver.Firefox(firefox_profile=accept_cert, options=is_headless)
+    browser = webdriver.Firefox(options=is_headless)
+    nas_wake_url = f"https://{nas_ip}/admin"
+    nas_url = f"https://{nas_user}:{nas_pass}@{nas_ip}/admin"
+
+
+    # Connection steps by trial-and-error:
+    # 0. wake up the unit
+    # 1. open nas_wake_url (no login credentials)
+    # 2. accept TLS 1.0 and 1.1 in firefox driver
+    # 3. open nas_url (with credentials provided)
+
+    is_alive = False
+    for _ in range(2):
+        try:
+            browser.get(nas_wake_url)
         except:
-            print(usage); quit()
-    elif _incoming.lower() == 'user':
-        nas_user = _incoming
+            sleep(1)
+        finally:
+            sleep(0.5)
+            if browser.title == "Problem loading page":
+                is_alive = True
+                break
 
-if nas_ip is None:
-    print(usage) ; quit()
-
-if nas_pass is None:
     try:
-        nas_pass = getpass(f"Password for {nas_user}: ")
-    except KeyboardInterrupt:
-        print("\nShutdown canceled.") ; quit()
-
-print(f"Shutting down ReadyNAS ({nas_ip}) over HTTPS as {nas_user}")
-
-# setup browser object and URL
-is_headless = webdriver.firefox.options.Options()
-is_headless.headless = True
-#accept_cert = webdriver.FirefoxProfile()
-#accept_cert.accept_untrusted_certs = True
-#browser = webdriver.Firefox(firefox_profile=accept_cert, options=is_headless)
-browser = webdriver.Firefox(options=is_headless)
-nas_wake_url = f"https://{nas_ip}/admin"
-nas_url = f"https://{nas_user}:{nas_pass}@{nas_ip}/admin"
-
-
-# Connection steps by trial-and-error:
-# 0. wake up the unit
-# 1. open nas_wake_url (no login credentials)
-# 2. accept TLS 1.0 and 1.1 in firefox driver
-# 3. open nas_url (with credentials provided)
-
-is_alive = False
-for _ in range(2):
-    try:
-        browser.get(nas_wake_url)
+        browser.get(nas_url)
     except:
-        sleep(1)
+        pass
     finally:
-        sleep(0.5)
-        if browser.title == "Problem loading page":
-            is_alive = True
-            break
-
-try:
-    browser.get(nas_url)
-except:
-    pass
-finally:
-    enable_tls1 = browser.find_element_by_id("enableTls10Button")
-    enable_tls1.click()
+        enable_tls1 = browser.find_element_by_id("enableTls10Button")
+        enable_tls1.click()
 
 
-# Check browser HTML title tag
-if browser.title == "ReadyNAS Frontview [onsite]":
-    is_alive = True
+    # Check browser HTML title tag
+    if browser.title == "ReadyNAS Frontview [onsite]":
+        is_alive = True
 
-if not is_alive:
+    if not is_alive:
+        shut_browser(browser)
+        print(f"Could not logon to NAS at {nas_ip}") ; quit()
+
+    # check menu mode
+    try:
+        mode_toggle = browser.find_element_by_id("BUTTON_MODE")
+        mode_set = mode_toggle.get_attribute("value")
+        if mode_set == "Switch to Advanced Control":
+            mode_toggle.click()
+    except:
+        pass
+
+    try:
+        # click submenu item "Shutdown"
+        menu_shutdown = browser.find_element_by_id("LABEL_MENU_SYSTEM_SHUTDOWN")
+        menu_shutdown.click()
+        select_shutdown = browser.find_element_by_id("shutdown_option1")
+        select_shutdown.click()
+        apply_shutdown = browser.find_element_by_id("BUTTON_APPLY")
+        apply_shutdown.click()
+    except Exception as e:
+        print("Could not shut down, possible web GUI mis-match.")
+        print(f"----\n{e}\n----")
+    else:
+        print("Netgear ReadyNAS shutting down.")
+    finally:
+        # In case page still loading ..
+        sleep(1)
+
+
+    # shut down browser
     shut_browser(browser)
-    print(f"Could not logon to NAS at {nas_ip}") ; quit()
-
-# check menu mode
-try:
-    mode_toggle = browser.find_element_by_id("BUTTON_MODE")
-    mode_set = mode_toggle.get_attribute("value")
-    if mode_set == "Switch to Advanced Control":
-        mode_toggle.click()
-except:
-    pass
-
-try:
-    # click submenu item "Shutdown"
-    menu_shutdown = browser.find_element_by_id("LABEL_MENU_SYSTEM_SHUTDOWN")
-    menu_shutdown.click()
-    select_shutdown = browser.find_element_by_id("shutdown_option1")
-    select_shutdown.click()
-    apply_shutdown = browser.find_element_by_id("BUTTON_APPLY")
-    apply_shutdown.click()
-except Exception as e:
-    print("Could not shut down, possible web GUI mis-match.")
-    print(f"----\n{e}\n----")
-else:
-    print("Netgear ReadyNAS shutting down.")
-finally:
-    # In case page still loading ..
-    sleep(1)
-
-
-# shut down browser
-shut_browser(browser)
-print("Done.")
-quit()
+    print("Done.")
+    quit()
